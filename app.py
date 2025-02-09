@@ -64,7 +64,7 @@ def classify_number():
     sanitized_number = sanitize_input(number)
     if sanitized_number is None:
         response_data = {
-            "number": number,
+            "number": "alphabet",
             "error": True,
         }
         response_json = json.dumps(response_data, indent=4)
