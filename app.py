@@ -2,30 +2,25 @@ from flask import Flask, request, Response
 from flask_cors import CORS
 import requests
 import json
-import re
 
 app = Flask(__name__)
 CORS(app)
 
-# Utility functions
+# Functions to classify numbers
 def is_prime(n):
     if n <= 1:
         return False
-    for i in range(2, int(n**0.5) + 1):
+    for i in range(2, int(abs(n)**0.5) + 1):
         if n % i == 0:
             return False
     return True
 
 def is_armstrong(n):
-    if n < 0:
-        return False
     digits = [int(d) for d in str(abs(n))]
-    return n == sum(d**len(digits) for d in digits)
+    return abs(n) == sum(d**len(digits) for d in digits)
 
 def is_perfect(n):
-    if n <= 0:
-        return False
-    return n == sum(i for i in range(1, n) if n % i == 0)
+    return abs(n) == sum(i for i in range(1, abs(n)) if abs(n) % i == 0)
 
 def get_number_fact(number):
     url = f"http://numbersapi.com/{number}/math?json=true"
@@ -34,25 +29,18 @@ def get_number_fact(number):
         return response.json().get("text", "No fact available")
     return "No fact available"
 
-def sanitize_input(value):
-    # Treat "null" as "0" (case insensitive)
-    value = value.lower().replace("null", "0")
-    
-    # Match valid integer patterns, including negative numbers
-    match = re.fullmatch(r"-?\d+", value)
-    if match:
-        return int(match.group())
-    
-    # Invalid input
-    return None
+def calculate_digit_sum(n):
+    # If number is negative, include the negative sign only for the first digit
+    digits = [-int(str(abs(n))[0])] + [int(d) for d in str(abs(n))[1:]] if n < 0 else [int(d) for d in str(n)]
+    return sum(digits)
 
-# API Endpoint
+# API endpoint
 @app.route("/api/classify-number", methods=["GET"])
 def classify_number():
     number = request.args.get("number")
-    
-    # Input validation and sanitization
-    if number is None:
+
+    # Validate the input: Ensure it's a valid number
+    if not number or not (number.lstrip('-').isdigit() and '-' not in number.lstrip('-')):
         response_data = {
             "number": "alphabet",
             "error": True
@@ -60,36 +48,25 @@ def classify_number():
         response_json = json.dumps(response_data, indent=4)
         return Response(response_json, status=400, content_type="application/json")
 
-    sanitized_number = sanitize_input(number)
-    if sanitized_number is None:
-        response_data = {
-            "number": number,
-            "error": True
-        }
-        response_json = json.dumps(response_data, indent=4)
-        return Response(response_json, status=400, content_type="application/json")
+    # Convert to integer for processing
+    number = int(number)
 
-    # Properties
+    # Determine properties
     properties = []
-    if is_armstrong(sanitized_number):
+    if is_armstrong(number):
         properties.append("armstrong")
-    properties.append("odd" if sanitized_number % 2 != 0 else "even")
-    
-    # Calculate digit sum (negative numbers included as `-2 + 3 + 4`)
-    digits = [int(d) if i == 0 and str(sanitized_number)[0] == '-' else int(d) 
-              for i, d in enumerate(str(abs(sanitized_number)))]
-    digit_sum = sum(digits)
+    properties.append("odd" if number % 2 != 0 else "even")
 
-    # Response
+    # Response data
     response_data = {
-        "number": sanitized_number,
-        "is_prime": is_prime(sanitized_number),
-        "is_perfect": is_perfect(sanitized_number),
+        "number": number,
+        "is_prime": is_prime(number),
+        "is_perfect": is_perfect(number),
         "properties": properties,
-        "digit_sum": digit_sum,
-        "fun_fact": get_number_fact(sanitized_number)
+        "digit_sum": calculate_digit_sum(number),
+        "fun_fact": get_number_fact(number)
     }
-    
+
     response_json = json.dumps(response_data, indent=4)
     return Response(response_json, status=200, content_type="application/json")
 
