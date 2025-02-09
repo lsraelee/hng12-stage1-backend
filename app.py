@@ -2,6 +2,7 @@ from flask import Flask, request, Response
 from flask_cors import CORS
 import requests
 import json
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -11,15 +12,19 @@ def is_prime(n):
     if n <= 1:
         return False
     for i in range(2, int(n**0.5) + 1):
-        if n % 1 == 0:
+        if n % i == 0:
             return False
     return True
 
 def is_armstrong(n):
-    digits = [int(d) for d in str(n)]
+    if n < 0:
+        return False
+    digits = [int(d) for d in str(abs(n))]
     return n == sum(d**len(digits) for d in digits)
 
 def is_perfect(n):
+    if n <= 0:
+        return False
     return n == sum(i for i in range(1, n) if n % i == 0)
 
 def get_number_fact(number):
@@ -27,43 +32,61 @@ def get_number_fact(number):
     response = requests.get(url)
     if response.status_code == 200:
         return response.json().get("text", "No fact available")
-    
     return "No fact available"
 
-# MY API Endpoint
+def sanitize_input(value):
+    # Handle special cases like "null" and "-null"
+    if value.lower() in ["null", "-null"]:
+        return 0  # Treat null and -null as 0
+
+    # Extract numeric part from alphanumeric strings
+    match = re.match(r"^-?\d+", value)
+    if match:
+        return int(match.group())
+    
+    return None
+
+# API Endpoint
 @app.route("/api/classify-number", methods=["GET"])
 def classify_number():
     number = request.args.get("number")
     
-    # Input validation
-    if not number or not number.isdigit():
+    # Input validation and sanitization
+    if not number:
         response_data = {
             "number": "alphabet",
-            "error": True
+            "error": True,
+            "message": "Missing 'number' parameter"
         }
         response_json = json.dumps(response_data, indent=4)
         return Response(response_json, status=400, content_type="application/json")
-        
-    number = int(number)
-    
-    # properties
+
+    sanitized_number = sanitize_input(number)
+    if sanitized_number is None:
+        response_data = {
+            "number": number,
+            "error": True,
+        }
+        response_json = json.dumps(response_data, indent=4)
+        return Response(response_json, status=400, content_type="application/json")
+
+    # Properties
     properties = []
-    if is_armstrong(number):
+    if is_armstrong(sanitized_number):
         properties.append("armstrong")
-    properties.append("odd" if number % 2 != 0 else "even")
+    properties.append("odd" if sanitized_number % 2 != 0 else "even")
     
     # Response
     response_data = {
-        "number": number,
-        "is_prime": is_prime(number),
-        "is_perfect": is_perfect(number),
+        "number": sanitized_number,
+        "is_prime": is_prime(sanitized_number),
+        "is_perfect": is_perfect(sanitized_number),
         "properties": properties,
-        "digit_sum": sum(int(d) for d in str(number)),
-        "fun_fact": get_number_fact(number)
+        "digit_sum": sum(int(d) for d in str(abs(sanitized_number)) if d.isdigit()),
+        "fun_fact": get_number_fact(sanitized_number)
     }
     
     response_json = json.dumps(response_data, indent=4)
-    
     return Response(response_json, status=200, content_type="application/json")
 
 if __name__ == "__main__":
