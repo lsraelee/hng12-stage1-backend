@@ -7,7 +7,7 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-# Declaring the check number functions
+# Utility functions
 def is_prime(n):
     if n <= 1:
         return False
@@ -35,15 +35,15 @@ def get_number_fact(number):
     return "No fact available"
 
 def sanitize_input(value):
-    # Handle special cases like "null" and "-null"
-    if value.lower() in ["null", "-null"]:
-        return 0  # Treat null and -null as 0
-
-    # Extract numeric part from alphanumeric strings
-    match = re.match(r"^-?\d+", value)
+    # Treat "null" as "0" (case insensitive)
+    value = value.lower().replace("null", "0")
+    
+    # Match valid integer patterns, including negative numbers
+    match = re.fullmatch(r"-?\d+", value)
     if match:
         return int(match.group())
     
+    # Invalid input
     return None
 
 # API Endpoint
@@ -52,11 +52,10 @@ def classify_number():
     number = request.args.get("number")
     
     # Input validation and sanitization
-    if not number:
+    if number is None:
         response_data = {
             "number": "alphabet",
-            "error": True,
-            "message": "Missing 'number' parameter"
+            "error": True
         }
         response_json = json.dumps(response_data, indent=4)
         return Response(response_json, status=400, content_type="application/json")
@@ -65,7 +64,7 @@ def classify_number():
     if sanitized_number is None:
         response_data = {
             "number": "alphabet",
-            "error": True,
+            "error": True
         }
         response_json = json.dumps(response_data, indent=4)
         return Response(response_json, status=400, content_type="application/json")
@@ -76,13 +75,18 @@ def classify_number():
         properties.append("armstrong")
     properties.append("odd" if sanitized_number % 2 != 0 else "even")
     
+    # Calculate digit sum (negative numbers included as `-2 + 3 + 4`)
+    digits = [int(d) if i == 0 and str(sanitized_number)[0] == '-' else int(d) 
+              for i, d in enumerate(str(abs(sanitized_number)))]
+    digit_sum = sum(digits)
+
     # Response
     response_data = {
         "number": sanitized_number,
         "is_prime": is_prime(sanitized_number),
         "is_perfect": is_perfect(sanitized_number),
         "properties": properties,
-        "digit_sum": sum(int(d) for d in str(abs(sanitized_number)) if d.isdigit()),
+        "digit_sum": digit_sum,
         "fun_fact": get_number_fact(sanitized_number)
     }
     
